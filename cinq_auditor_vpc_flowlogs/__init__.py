@@ -53,7 +53,8 @@ class VPCFlowLogsAuditor(BaseAuditor):
                         else:
                             self.log.info('Could not confirm cloudwatch loggroup for account {} and region {}'.format(
                                 account,
-                                aws_region))
+                                aws_region
+                            ))
 
                 except Exception:
                     self.log.exception('There was a problem parsing VPCs for account {} and region {}.'.format(
@@ -76,6 +77,7 @@ class VPCFlowLogsAuditor(BaseAuditor):
         try:
             iam = self.session.client('iam')
             rolearn = iam.get_role(RoleName=self.role_name)['Role']['Arn']
+            return rolearn
 
         except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchEntity':
@@ -87,7 +89,6 @@ class VPCFlowLogsAuditor(BaseAuditor):
         except Exception as e:
             self.log.exception('Problem confirming the IAM role needed for VPC Flow Log Auditing. {}'.format(e))
 
-        return rolearn
 
     @retry
     def create_iam_role(self, account):
