@@ -147,22 +147,30 @@ class VPCFlowLogsAuditor(BaseAuditor):
         """
         try:
             cw = self.session.client('logs', region)
-            if vpcname not in [x['logGroupName'] for x in cw.describe_log_groups().get('logGroups')]:
-                cw.create_log_group(logGroupName=vpcname)
-                self.log.info('Log Group {} has been created.'.format(vpcname))
-                AuditLog.log(
-                    event='vpc_flow_logs.create_cw_log_group',
-                    actor=self.ns,
-                    data={
-                        'account': account.account_name,
-                        'region': region,
-                        'log_group_name': vpcname,
-                        'vpc': vpcname
-                    }
-                )
-                cw_vpc = VPC.get(vpcname)
-                cw_vpc.set_property('vpc_flow_logs_log_group', vpcname)
+            token = None
+            while True:
+                log_groups = cw.describe_log_groups() if not token else cw.describe_log_groups(nextToken=token)
+                if vpcname in [x['logGroupName'] for x in log_groups.get('logGroups')]:
+                    break
+                elif log_groups['nextToken']:
+                    token = log_groups['nextToken']
+                else:
+                    cw.create_log_group(logGroupName=vpcname)
+                    self.log.info('Log Group {} has been created.'.format(vpcname))
 
+                    AuditLog.log(
+                        event='vpc_flow_logs.create_cw_log_group',
+                        actor=self.ns,
+                        data={
+                            'account': account.account_name,
+                            'region': region,
+                            'log_group_name': vpcname,
+                            'vpc': vpcname
+                        }
+                    )
+                    cw_vpc = VPC.get(vpcname)
+                    cw_vpc.set_property('vpc_flow_logs_log_group', vpcname)
+                    break
             return True
 
         except Exception:
