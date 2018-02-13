@@ -21,8 +21,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'cloud_inquisitor~=1.0.2',
-        'cinq_collector_aws~=1.0.1'
+        'cloud_inquisitor~=1.1.0',
+        'cinq_collector_aws~=1.1.0'
     ],
     extras_require={
         'dev': [],
