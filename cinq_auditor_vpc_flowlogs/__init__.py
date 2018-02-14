@@ -1,7 +1,8 @@
 from botocore.exceptions import ClientError
-from cloud_inquisitor import get_aws_session, AWS_REGIONS, db
+from cloud_inquisitor import get_aws_session, AWS_REGIONS
 from cloud_inquisitor.config import dbconfig, ConfigOption
 from cloud_inquisitor.constants import NS_AUDITOR_VPC_FLOW_LOGS, AccountTypes
+from cloud_inquisitor.database import db
 from cloud_inquisitor.plugins import BaseAuditor
 from cloud_inquisitor.plugins.types.resources import VPC
 from cloud_inquisitor.schema import Account, AuditLog
@@ -28,10 +29,6 @@ class VPCFlowLogsAuditor(BaseAuditor):
 
     def run(self):
         """Main entry point for the auditor worker.
-
-        Args:
-            *args:
-            **kwargs:
 
         Returns:
             `None`
