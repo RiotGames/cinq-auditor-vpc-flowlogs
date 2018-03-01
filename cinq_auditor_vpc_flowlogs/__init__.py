@@ -13,7 +13,6 @@ from cloud_inquisitor.wrappers import retry
 class VPCFlowLogsAuditor(BaseAuditor):
     name = 'VPC Flow Log Compliance'
     ns = NS_AUDITOR_VPC_FLOW_LOGS
-    enabled = dbconfig.get('enabled', ns, False)
     interval = dbconfig.get('interval', ns, 60)
     role_name = dbconfig.get('role_name', ns, 'VpcFlowLogsRole')
     start_delay = 0
