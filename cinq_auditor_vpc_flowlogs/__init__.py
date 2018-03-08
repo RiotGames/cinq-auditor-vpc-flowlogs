@@ -34,7 +34,8 @@ class VPCFlowLogsAuditor(BaseAuditor):
         """
         # Loop through all accounts that are marked as enabled
         for account in db.Account.find(Account.enabled == 1, Account.account_type == AccountTypes.AWS):
-            self.log.debug('Now Working through account {}'.format(account))
+            self.log.debug('Updating VPC Flow Logs for {}'.format(account))
+
             self.session = get_aws_session(account)
             role_arn = self.confirm_iam_role(account)
             # region specific
@@ -47,18 +48,18 @@ class VPCFlowLogsAuditor(BaseAuditor):
                         if self.confirm_cw_log(account, aws_region, vpc.id):
                             self.create_vpc_flow_logs(account, aws_region, vpc.id, role_arn)
                         else:
-                            self.log.info('Could not confirm cloudwatch loggroup for account {} and region {}'.format(
+                            self.log.info('Failed to confirm log group for {}/{}'.format(
                                 account,
                                 aws_region
                             ))
 
                 except Exception:
-                    self.log.exception('There was a problem parsing VPCs for account {} and region {}.'.format(
+                    self.log.exception('Failed processing VPCs for {}/{}.'.format(
                         account,
                         aws_region
                     ))
 
-        db.session.commit()
+            db.session.commit()
 
     @retry
     def confirm_iam_role(self, account):
@@ -77,13 +78,12 @@ class VPCFlowLogsAuditor(BaseAuditor):
 
         except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchEntity':
-                rolearn = self.create_iam_role(account)
-                pass
+                self.create_iam_role(account)
             else:
                 raise
 
         except Exception as e:
-            self.log.exception('Problem confirming the IAM role needed for VPC Flow Log Auditing. {}'.format(e))
+            self.log.exception('Failed validating IAM role for VPC Flow Log Auditing for {}'.format(e))
 
 
     @retry
@@ -113,7 +113,8 @@ class VPCFlowLogsAuditor(BaseAuditor):
                 PolicyName='VpcFlowPolicy',
                 PolicyDocument=policy
             )
-            self.log.debug('Role and policy created successfully')
+
+            self.log.debug('Created VPC Flow Logs role & policy for {}'.format(account.account_name))
             AuditLog.log(
                 event='vpc_flow_logs.create_iam_role',
                 actor=self.ns,
@@ -127,7 +128,7 @@ class VPCFlowLogsAuditor(BaseAuditor):
             return newrole
 
         except Exception:
-            self.log.exception('There was a problem creating the IAM role for account {}.'.format(account))
+            self.log.exception('Failed creating the VPC Flow Logs role for {}.'.format(account))
 
     @retry
     def confirm_cw_log(self, account, region, vpcname):
@@ -144,33 +145,36 @@ class VPCFlowLogsAuditor(BaseAuditor):
         try:
             cw = self.session.client('logs', region)
             token = None
+            log_groups = []
             while True:
-                log_groups = cw.describe_log_groups() if not token else cw.describe_log_groups(nextToken=token)
-                if vpcname in [x['logGroupName'] for x in log_groups.get('logGroups')]:
-                    break
-                elif log_groups['nextToken']:
-                    token = log_groups['nextToken']
-                else:
-                    cw.create_log_group(logGroupName=vpcname)
-                    self.log.info('Log Group {} has been created.'.format(vpcname))
+                result = cw.describe_log_groups() if not token else cw.describe_log_groups(nextToken=token)
+                token = result.get('nextToken')
+                log_groups.extend([x['logGroupName'] for x in result.get('logGroups', [])])
 
-                    AuditLog.log(
-                        event='vpc_flow_logs.create_cw_log_group',
-                        actor=self.ns,
-                        data={
-                            'account': account.account_name,
-                            'region': region,
-                            'log_group_name': vpcname,
-                            'vpc': vpcname
-                        }
-                    )
-                    cw_vpc = VPC.get(vpcname)
-                    cw_vpc.set_property('vpc_flow_logs_log_group', vpcname)
+                if not token:
                     break
+
+            if vpcname not in log_groups:
+                cw.create_log_group(logGroupName=vpcname)
+
+                cw_vpc = VPC.get(vpcname)
+                cw_vpc.set_property('vpc_flow_logs_log_group', vpcname)
+
+                self.log.info('Created log group {}/{}/{}'.format(account.account_name, region, vpcname))
+                AuditLog.log(
+                    event='vpc_flow_logs.create_cw_log_group',
+                    actor=self.ns,
+                    data={
+                        'account': account.account_name,
+                        'region': region,
+                        'log_group_name': vpcname,
+                        'vpc': vpcname
+                    }
+                )
             return True
 
         except Exception:
-            self.log.exception('There was a problem creating CloudWatch Log Group for {} / {} / {}.'.format(
+            self.log.exception('Failed creating log group for {}/{}/{}.'.format(
                 account,
                 region, vpcname
             ))
@@ -181,9 +185,9 @@ class VPCFlowLogsAuditor(BaseAuditor):
 
         Args:
             account (:obj:`Account`): Account to create the flow in
-            region (`str): Region to create the flow in
+            region (`str`): Region to create the flow in
             vpc_id (`str`): ID of the VPC to create the flow for
-            iam_role_arn (`str): ARN of the IAM role used to post logs to the log group
+            iam_role_arn (`str`): ARN of the IAM role used to post logs to the log group
 
         Returns:
             `None`
@@ -197,6 +201,10 @@ class VPCFlowLogsAuditor(BaseAuditor):
                 LogGroupName=vpc_id,
                 DeliverLogsPermissionArn=iam_role_arn
             )
+            fvpc = VPC.get(vpc_id)
+            fvpc.set_property('vpc_flow_logs_status', 'ACTIVE')
+
+            self.log.info('Enabled VPC Logging {}/{}/{}'.format(account, region, vpc_id))
             AuditLog.log(
                 event='vpc_flow_logs.create_vpc_flow',
                 actor=self.ns,
@@ -207,12 +215,8 @@ class VPCFlowLogsAuditor(BaseAuditor):
                     'arn': iam_role_arn
                 }
             )
-            fvpc = VPC.get(vpc_id)
-            fvpc.set_property('vpc_flow_logs_status', 'ACTIVE')
-            self.log.info('VPC Logging has been enabled for {}'.format(vpc_id))
-
         except Exception:
-            self.log.exception('There was a problem creating the VPC Flow Logs for account {} region {} for vpc {}.'.format(
+            self.log.exception('Failed creating VPC Flow Logs for {}/{}/{}.'.format(
                 account,
                 region,
                 vpc_id
