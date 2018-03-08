@@ -185,9 +185,9 @@ class VPCFlowLogsAuditor(BaseAuditor):
 
         Args:
             account (:obj:`Account`): Account to create the flow in
-            region (`str): Region to create the flow in
+            region (`str`): Region to create the flow in
             vpc_id (`str`): ID of the VPC to create the flow for
-            iam_role_arn (`str): ARN of the IAM role used to post logs to the log group
+            iam_role_arn (`str`): ARN of the IAM role used to post logs to the log group
 
         Returns:
             `None`
