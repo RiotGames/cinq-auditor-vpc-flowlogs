@@ -3,9 +3,10 @@ from cloud_inquisitor import get_aws_session, AWS_REGIONS
 from cloud_inquisitor.config import dbconfig, ConfigOption
 from cloud_inquisitor.constants import NS_AUDITOR_VPC_FLOW_LOGS, AccountTypes
 from cloud_inquisitor.database import db
+from cloud_inquisitor.log import auditlog
 from cloud_inquisitor.plugins import BaseAuditor
 from cloud_inquisitor.plugins.types.resources import VPC
-from cloud_inquisitor.schema import Account, AuditLog
+from cloud_inquisitor.schema import Account
 from cloud_inquisitor.utils import get_template
 from cloud_inquisitor.wrappers import retry
 
@@ -115,7 +116,7 @@ class VPCFlowLogsAuditor(BaseAuditor):
             )
 
             self.log.debug('Created VPC Flow Logs role & policy for {}'.format(account.account_name))
-            AuditLog.log(
+            auditlog(
                 event='vpc_flow_logs.create_iam_role',
                 actor=self.ns,
                 data={
@@ -161,7 +162,7 @@ class VPCFlowLogsAuditor(BaseAuditor):
                 cw_vpc.set_property('vpc_flow_logs_log_group', vpcname)
 
                 self.log.info('Created log group {}/{}/{}'.format(account.account_name, region, vpcname))
-                AuditLog.log(
+                auditlog(
                     event='vpc_flow_logs.create_cw_log_group',
                     actor=self.ns,
                     data={
@@ -205,7 +206,7 @@ class VPCFlowLogsAuditor(BaseAuditor):
             fvpc.set_property('vpc_flow_logs_status', 'ACTIVE')
 
             self.log.info('Enabled VPC Logging {}/{}/{}'.format(account, region, vpc_id))
-            AuditLog.log(
+            auditlog(
                 event='vpc_flow_logs.create_vpc_flow',
                 actor=self.ns,
                 data={
