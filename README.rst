@@ -2,6 +2,8 @@
 cinq-auditor-vpc-flowlogs
 *************************
 
+Please open issues in the `Cloud-Inquisitor <https://github.com/RiotGames/cloud-inquisitor/issues/new?labels=cinq-auditor-vpc-flowlogs>`_ repository
+
 ===========
 Description
 ===========
