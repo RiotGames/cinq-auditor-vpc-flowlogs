@@ -1,12 +1,12 @@
 from botocore.exceptions import ClientError
 from cloud_inquisitor import get_aws_session, AWS_REGIONS
 from cloud_inquisitor.config import dbconfig, ConfigOption
-from cloud_inquisitor.constants import NS_AUDITOR_VPC_FLOW_LOGS, AccountTypes
+from cloud_inquisitor.constants import NS_AUDITOR_VPC_FLOW_LOGS
 from cloud_inquisitor.database import db
 from cloud_inquisitor.log import auditlog
 from cloud_inquisitor.plugins import BaseAuditor
+from cloud_inquisitor.plugins.types.accounts import AWSAccount
 from cloud_inquisitor.plugins.types.resources import VPC
-from cloud_inquisitor.schema import Account
 from cloud_inquisitor.utils import get_template
 from cloud_inquisitor.wrappers import retry
 
@@ -34,7 +34,8 @@ class VPCFlowLogsAuditor(BaseAuditor):
             `None`
         """
         # Loop through all accounts that are marked as enabled
-        for account in db.Account.find(Account.enabled == 1, Account.account_type == AccountTypes.AWS):
+        accounts = list(AWSAccount.get_all(include_disabled=False).values())
+        for account in accounts:
             self.log.debug('Updating VPC Flow Logs for {}'.format(account))
 
             self.session = get_aws_session(account)
