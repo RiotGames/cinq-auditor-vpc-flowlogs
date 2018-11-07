@@ -16,11 +16,13 @@ class VPCFlowLogsAuditor(BaseAuditor):
     ns = NS_AUDITOR_VPC_FLOW_LOGS
     interval = dbconfig.get('interval', ns, 60)
     role_name = dbconfig.get('role_name', ns, 'VpcFlowLogsRole')
+    log_retention_days = dbconfig.get('log_retention_days', ns, 180)
     start_delay = 0
     options = (
         ConfigOption('enabled', False, 'bool', 'Enable the VPC Flow Logs auditor'),
         ConfigOption('interval', 60, 'int', 'Run frequency in minutes'),
-        ConfigOption('role_name', 'VpcFlowLogsRole', 'str', 'Name of IAM Role used for VPC Flow Logs')
+        ConfigOption('role_name', 'VpcFlowLogsRole', 'str', 'Name of IAM Role used for VPC Flow Logs'),
+        ConfigOption('log_retention_days', 180, 'int', 'CW Log Retention in Days')
     )
 
     def __init__(self):
@@ -86,7 +88,6 @@ class VPCFlowLogsAuditor(BaseAuditor):
 
         except Exception as e:
             self.log.exception('Failed validating IAM role for VPC Flow Log Auditing for {}'.format(e))
-
 
     @retry
     def create_iam_role(self, account):
@@ -158,6 +159,7 @@ class VPCFlowLogsAuditor(BaseAuditor):
 
             if vpcname not in log_groups:
                 cw.create_log_group(logGroupName=vpcname)
+                cw.put_retention_policy(logGroupName=vpcname, retentionInDays=self.log_retention_days)
 
                 cw_vpc = VPC.get(vpcname)
                 cw_vpc.set_property('vpc_flow_logs_log_group', vpcname)
